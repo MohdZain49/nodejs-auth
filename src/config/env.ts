@@ -42,6 +42,10 @@ if (!process.env.JWT_REFRESH_SECRET) {
   throw new Error("JWT_REFRESH_SECRET is missing");
 }
 
+if (!process.env.JWT_EMAIL_SECRET) {
+  throw new Error("JWT_EMAIL_SECRET is missing");
+}
+
 const env = {
   PORT: process.env.PORT,
   MONGO_URI: process.env.MONGO_URI,
@@ -53,6 +57,7 @@ const env = {
   APP_URL: process.env.APP_URL,
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET,
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
+  JWT_EMAIL_SECRET: process.env.JWT_EMAIL_SECRET,
 };
 
 const ENV = Object.freeze(env);
