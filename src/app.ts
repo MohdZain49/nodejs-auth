@@ -1,5 +1,6 @@
 import express from "express";
 import cookieParser from "cookie-parser";
+import authRouter from "./routes/auth.route";
 
 const app = express();
 
@@ -13,5 +14,8 @@ app.get("/health", (_, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+app.use("/api/v1/auth", authRouter)
+
 
 export default app;
