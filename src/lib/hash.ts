@@ -5,3 +5,7 @@ export const hashedPassword = async (password: string) => {
   const passwordHash = await bcrypt.hash(password, salt);
   return passwordHash;
 }
+
+export const verifyPassword = async (password: string, passwordHash: string) => {
+  return bcrypt.compare(password, passwordHash)
+}

@@ -4,10 +4,11 @@ import jwt from "jsonwebtoken";
 import ENV from "../../config/env";
 
 import { User } from "../../models/user.model";
-import { registrationSchema } from "./auth.schema";
+import { registrationSchema, loginSchema } from "./auth.schema";
 
-import { hashedPassword } from "../../lib/hash";
+import { hashedPassword, verifyPassword } from "../../lib/hash";
 import sendEmail from "../../lib/email";
+import { createAccessToken, createRefreshToken } from "../../lib/token";
 
 const getAppUrl = () => {
   return ENV.APP_URL || `http://localhost:${ENV.PORT}`;
@@ -67,6 +68,7 @@ export async function registerHandler(req: Request, res: Response) {
       message: "User registered",
       user: {
         id: newUser.id,
+        name: newUser.name,
         email: newUser.email,
         role: newUser.role,
         isEmailVerified: newUser.isEmailVerified,
@@ -131,6 +133,80 @@ export async function verifyEmailHandler(req: Request, res: Response) {
       });
     }
 
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function loginHandler(req: Request, res: Response) {
+  try {
+    const result = loginSchema.safeParse(req.body);
+
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid credentials",
+        error: result.error.flatten(),
+      });
+    }
+
+    const { email, password } = result.data;
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    const isPasswordMatch = verifyPassword(password, user.passwordHash);
+
+    if (!isPasswordMatch) {
+      return res.status(403).json({
+        message: "Invalid credentials",
+      });
+    }
+
+    if (!user.isEmailVerified) {
+      return res.status(403).json({
+        message: "Email not verified",
+      });
+    }
+
+    const accessToken = createAccessToken(
+      user.id,
+      user.role,
+      user.tokenVersion,
+    );
+
+    const refreshToken = createRefreshToken(user.id, user.tokenVersion);
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: ENV.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(200).json({
+      message: "User loggin successfully",
+      accessToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isEmailVerified: user.isEmailVerified,
+        twoFactorEnabled: user.twoFactorEnabled,
+      },
+    });
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({
       message: "Internal server error",
     });
