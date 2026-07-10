@@ -8,7 +8,11 @@ import { registrationSchema, loginSchema } from "./auth.schema";
 
 import { hashedPassword, verifyPassword } from "../../lib/hash";
 import sendEmail from "../../lib/email";
-import { createAccessToken, createRefreshToken } from "../../lib/token";
+import {
+  createAccessToken,
+  createRefreshToken,
+  verifyRefreshToken,
+} from "../../lib/token";
 
 const getAppUrl = () => {
   return ENV.APP_URL || `http://localhost:${ENV.PORT}`;
@@ -207,6 +211,81 @@ export async function loginHandler(req: Request, res: Response) {
     });
   } catch (err) {
     console.error(err);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
+
+export async function refreshTokenHandler(req: Request, res: Response) {
+  try {
+    const token = req.cookies.refreshToken as string | undefined;
+
+    if (!token) {
+      return res.status(401).json({
+        message: "Invalid request",
+      });
+    }
+
+    const payload = verifyRefreshToken(token);
+
+    const userId = payload.sub;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Invalid refresh token",
+      });
+    }
+
+    if (user.tokenVersion !== payload.tokenVersion) {
+      return res.status(401).json({
+        message: "Refresh token invalidated",
+      });
+    }
+
+    const newAccessToken = createAccessToken(
+      user.id,
+      user.role,
+      user.tokenVersion,
+    );
+
+    const newRefreshToken = createRefreshToken(user.id, user.tokenVersion);
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: ENV.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(200).json({
+      message: "Token refreshed",
+      accessToken: newAccessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        isEmailVerified: user.isEmailVerified,
+        twoFactorEnabled: user.twoFactorEnabled,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+
+    if (error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({
+        message: "Refresh token expired",
+      });
+    }
+
+    if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({
+        message: "Invalid refresh token",
+      });
+    }
+
     return res.status(500).json({
       message: "Internal server error",
     });

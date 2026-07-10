@@ -27,3 +27,10 @@ export const createRefreshToken = (userId: string, tokenVersion: number) => {
     expiresIn: "7d",
   });
 };
+
+export const verifyRefreshToken = (token: string) => {
+  return jwt.verify(token, ENV.JWT_REFRESH_SECRET!) as {
+    sub: string;
+    tokenVersion: number;
+  };
+}
